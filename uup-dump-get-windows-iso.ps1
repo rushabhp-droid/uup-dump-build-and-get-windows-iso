@@ -123,6 +123,7 @@ $TARGETS = @{
   "windows-11new"    = @{ search="windows 11 26200$dotSystemRevision $arch"; edition=(Get-EditionName $edition) }
   "windows-11beta"   = @{ search="windows 11 26120$dotSystemRevision $arch"; edition=(Get-EditionName $edition); ring="Beta" }
   "windows-11dev"    = @{ search="windows 11 26220$dotSystemRevision $arch"; edition=(Get-EditionName $edition); ring="Wif" }
+  "windows-1126h1"   = @{ search="windows 11 28000$dotSystemRevision $arch"; edition=(Get-EditionName $edition) }
   "windows-dev"      = @{ search="windows 11 26300$dotSystemRevision $arch"; edition=(Get-EditionName $edition); ring="Dev" }
   "windows-canary"   = @{ search="windows 11$systemRevision $arch"; edition=(Get-EditionName $edition); ring="Canary" }
 }
