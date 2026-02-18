@@ -322,7 +322,7 @@ jobs:
           name: "${{ env.images }} ${{ inputs.architecture}} ${{ env.version }} (${{ env.build }})"
           body_path: summary.md
           draft: false
-          prerelease: ${{ !contains(fromJson('["Windows 10 22H2","Windows 11 23H2","Windows 11 24H2","Windows 11 25H2"]'), inputs.versions) }}
+          prerelease: ${{ !contains(fromJson('["Windows 10 22H2","Windows 11 23H2","Windows 11 24H2","Windows 11 25H2","Windows 11 26H1"]'), inputs.versions) }}
           files: |
             C:/output/*.zip.0*
 
@@ -356,12 +356,10 @@ jobs:
             $partsLines += "  out=$($p.Name)"
           }
 
-          $isoLine = "echo( ${{ env.iso_checksum }}  ${{ env.ISO_NAME }}"
-
           $utils = Join-Path $ws "Utils"
 
           function New-BAT {
-            param([string]$destDir, [string[]]$PartsLines, [string]$IsoLine)
+            param([string]$destDir, [string[]]$PartsLines)
             $emitParts = @()
             foreach ($ln in $PartsLines) { $emitParts += '  echo(' + $ln }
             $lines = @(
@@ -375,7 +373,6 @@ jobs:
               'set "TMPDIR=%TEMP%\uup_parts_%RANDOM%%RANDOM%"',
               'mkdir "%TMPDIR%" >nul 2>&1',
               'set "LIST=%TMPDIR%\parts.txt"',
-              'set "ISOFILE=%TMPDIR%\iso.sha256"',
               'set "ARIA=%HERE%bin\aria2c.exe"',
               'set "SEVENZIP=%HERE%bin\7za.exe"',
               '',
@@ -387,14 +384,9 @@ jobs:
             ) + $emitParts + @(
               ') > "%TMPDIR%\parts.txt"',
               '',
-              'rem Write embedded ISO SHA256',
-              '( '
-            ) + $IsoLine + @(
-              ' ) > "%TMPDIR%\iso.sha256"',
-              '',
               'echo Starting download parts with Aria2',
               'echo.',
-              '"%ARIA%" --input-file="%LIST%" --dir="%OutputDir%" --auto-file-renaming=false --allow-overwrite=true --continue=true --max-concurrent-downloads=16 --split=16 --min-split-size=1M --check-integrity=true --console-log-level=warn --summary-interval=0',
+              '"%ARIA%" --input-file="%LIST%" --dir="%OutputDir%" --auto-file-renaming=false --allow-overwrite=true --continue=true --max-concurrent-downloads=16 --split=16 --min-split-size=1M --check-integrity=true --console-log-level=warn --summary-interval=30 --file-allocation=none',
               'if errorlevel 1 (echo ERROR: aria2 download failed & exit /b 1)',
               '',
               'for /f "delims=" %%P in (''dir /b /a:-d "%OutputDir%\*.zip.001" 2^>nul'') do set "FIRST=%%P"',
@@ -407,15 +399,7 @@ jobs:
               'for /f "delims=" %%I in (''dir /b /a:-d "%OutputDir%\*.ISO" 2^>nul'') do set "ISO=%%I"',
               'if not defined ISO (echo ERROR: ISO not found & exit /b 1)',
               '',
-              'echo Checking ISO hash',
-              'echo.',
-              'for /f "usebackq tokens=1,2" %%H in ("%ISOFILE%") do ( set "EXPECTEDISO=%%H" )',
-              'for /f "skip=1 tokens=* delims=" %%S in (''certutil -hashfile "%OutputDir%\%ISO%" SHA256'') do ( if not defined ACTISO set "ACTISO=%%S" )',
-              'set "ACTISO=!ACTISO: =!"',
-              'set "ACTISO=!ACTISO:~0,64!"',
-              'if /I not "!ACTISO!"=="!EXPECTEDISO!" ( echo ERROR: ISO checksum mismatch & exit /b 1 )',
-              '',
-              'echo ISO verified: %ISO%',
+              'echo ISO saved: %ISO%',
               'echo.',
               'echo Done',
               'echo.',
@@ -427,7 +411,7 @@ jobs:
           }
 
           function New-SH {
-            param([string]$destDir, [string[]]$PartsLines, [string]$IsoLine)
+            param([string]$destDir, [string[]]$PartsLines)
             $lines = @(
               '#!/bin/sh',
               'set -eu',
@@ -436,7 +420,6 @@ jobs:
               'LAUNCH_DIR=$(pwd)',
               'TMPDIR="$LAUNCH_DIR/tmp_dir"',
               'LIST_FILE="$TMPDIR/parts.txt"',
-              'ISO_SHA="$TMPDIR/iso.sha256"',
               'ARIA2_BIN="$SCRIPT_DIR/bin/aria2c"',
               'ARIA2="$ARIA2_BIN"',
               'SEVEN_ZIP=""',
@@ -463,12 +446,8 @@ jobs:
             ) + ($PartsLines -join "`n") + @(
               'EOF_PARTS',
               '',
-              'cat > "$ISO_SHA" << "EOF_ISO"',
-              '${{ env.iso_checksum }}  ${{ env.ISO_NAME }}',
-              'EOF_ISO',
-              '',
               'echo "Starting download of parts with aria2c"',
-              '"$ARIA2" --input-file="$LIST_FILE" --dir="$TMPDIR" --auto-file-renaming=false --allow-overwrite=true --continue=true --max-concurrent-downloads=16 --split=16 --min-split-size=1M --check-integrity=true --console-log-level=warn --summary-interval=0',
+              '"$ARIA2" --input-file="$LIST_FILE" --dir="$TMPDIR" --auto-file-renaming=false --allow-overwrite=true --continue=true --max-concurrent-downloads=16 --split=16 --min-split-size=1M --check-integrity=true --console-log-level=warn --summary-interval=30 --file-allocation=none',
               '',
               'firstpart=""',
               'for f in "$TMPDIR"/*.zip.001; do',
@@ -501,18 +480,9 @@ jobs:
               'done',
               '[ -n "$iso" ] || { echo "ERROR: ISO not found" >&2; exit 1; }',
               '',
-              'echo "Checking ISO hash (no progress visible!)"',
-              'expected_hash=$(cut -d" " -f1 "$ISO_SHA")',
-              'if command -v sha256sum >/dev/null 2>&1; then',
-              '  actual_hash=$(sha256sum "$iso" | awk "{print \$1}")',
-              'else',
-              '  actual_hash=$(shasum -a 256 "$iso" | awk "{print \$1}")',
-              'fi',
-              '[ "$actual_hash" = "$expected_hash" ] || { echo "ERROR: ISO checksum mismatch" >&2; exit 1; }',
-              '',
               'dest="$LAUNCH_DIR/$(basename "$iso")"',
               'mv -f "$iso" "$dest"',
-              'echo "ISO verified and saved to: $(basename "$dest")"',
+              'echo "ISO saved to: $(basename "$dest")"',
               '',
               'rm -rf "$TMPDIR"',
               '',
@@ -536,36 +506,36 @@ jobs:
               'windows-x64' {
                 Copy-Item (Join-Path $utils 'aria2/windows-x64/aria2c.exe') $binDir -Force
                 Copy-Item (Join-Path $utils '7z/windows-x64/7za.exe')       $binDir -Force
-                New-BAT -destDir $pkgDir -PartsLines $partsLines -IsoLine $isoLine
+                New-BAT -destDir $pkgDir -PartsLines $partsLines
               }
               'windows-arm64' {
                 Copy-Item (Join-Path $utils 'aria2/windows-arm64/aria2c.exe') $binDir -Force
                 Copy-Item (Join-Path $utils '7z/windows-arm64/7za.exe')       $binDir -Force
-                New-BAT -destDir $pkgDir -PartsLines $partsLines -IsoLine $isoLine
+                New-BAT -destDir $pkgDir -PartsLines $partsLines
               }
               'linux-x64' {
                 Get-ChildItem (Join-Path $utils 'aria2/linux-x64') -Filter 'aria2c*' -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '*.exe' } | Copy-Item -Destination $binDir -Force
                 Get-ChildItem (Join-Path $utils '7z/linux-x64')    -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '*.exe' } | Copy-Item -Destination $binDir -Force
                 & bash -lc "chmod +x '$binDir/*' 2>/dev/null || true"
-                New-SH -destDir $pkgDir -PartsLines $partsLines -IsoLine $isoLine
+                New-SH -destDir $pkgDir -PartsLines $partsLines
               }
               'linux-arm' {
                 Get-ChildItem (Join-Path $utils 'aria2/linux-arm') -Filter 'aria2c*' -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '*.exe' } | Copy-Item -Destination $binDir -Force
                 Get-ChildItem (Join-Path $utils '7z/linux-arm')    -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '*.exe' } | Copy-Item -Destination $binDir -Force
                 & bash -lc "chmod +x '$binDir/*' 2>/dev/null || true"
-                New-SH -destDir $pkgDir -PartsLines $partsLines -IsoLine $isoLine
+                New-SH -destDir $pkgDir -PartsLines $partsLines
               }
               'linux-arm64' {
                 Get-ChildItem (Join-Path $utils 'aria2/linux-arm64') -Filter 'aria2c*' -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '*.exe' } | Copy-Item -Destination $binDir -Force
                 Get-ChildItem (Join-Path $utils '7z/linux-arm64')    -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '*.exe' } | Copy-Item -Destination $binDir -Force
                 & bash -lc "chmod +x '$binDir/*' 2>/dev/null || true"
-                New-SH -destDir $pkgDir -PartsLines $partsLines -IsoLine $isoLine
+                New-SH -destDir $pkgDir -PartsLines $partsLines
               }
               'macos-universal' {
                 Get-ChildItem (Join-Path $utils 'aria2/macos-universal') -Filter 'aria2c*' -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '*.exe' } | Copy-Item -Destination $binDir -Force
                 Get-ChildItem (Join-Path $utils '7z/macos-universal')    -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '*.exe' } | Copy-Item -Destination $binDir -Force
                 & bash -lc "chmod +x '$binDir/*' 2>/dev/null || true"
-                New-SH -destDir $pkgDir -PartsLines $partsLines -IsoLine $isoLine
+                New-SH -destDir $pkgDir -PartsLines $partsLines
               }
             }
 
