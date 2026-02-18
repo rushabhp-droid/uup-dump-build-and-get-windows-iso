@@ -34,8 +34,9 @@ on:
           - Windows 11 24H2
           - Windows 11 24H2 BETA
           - Windows 11 25H2
-          - Windows 11 DEV
-          - Windows 11 CANARY
+          - Windows 11 25H2 BETA
+          - Windows DEV
+          - Windows CANARY
         default: Windows 11 25H2
         required: true
       edition:
@@ -166,8 +167,9 @@ jobs:
             'Windows 11 24H2'      = 'windows-11'
             'Windows 11 24H2 BETA' = 'windows-11beta'
             'Windows 11 25H2'      = 'windows-11new'
-            'Windows 11 DEV'       = 'windows-11dev'
-            'Windows 11 CANARY'    = 'windows-11canary'
+            'Windows 11 25H2 BETA' = 'windows-11dev'
+            'Windows DEV'          = 'windows-dev'
+            'Windows CANARY'       = 'windows-canary'
           }
 
           $langCode = $langMap['${{ inputs.language }}']
