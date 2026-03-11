@@ -115,7 +115,7 @@ jobs:
     runs-on: ${{ fromJSON('{"x64":"windows-2022","arm64":"windows-11-arm"}')[inputs.architecture] }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Map inputs
         id: map
@@ -209,7 +209,7 @@ jobs:
 
       - name: Upload ISO artifact
         id: upload_iso_artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.ISO_NAME }}
           path: c:/output/*.ISO
@@ -259,7 +259,7 @@ jobs:
                 $k = $_.ToLower()
                 if ($descMap.ContainsKey($k)) { $descMap[$k] } else { $_.TrimStart('-') }
               } | Select-Object -Unique
-          
+
             if ($items.Count -gt 0) {
               $optsFormatted = ($items | ForEach-Object { "<li>$($_)</li>" }) -join ''
               $optsRow = "| Build config | <ul>$optsFormatted</ul> |"
@@ -287,13 +287,13 @@ jobs:
           "@
 
           $rlsnfo = @"
-          
+
           ## RELEASE INFO
-          > [!NOTE]  
+          > [!NOTE]
           > File is splitted because Github release limit filesize to 2G.
           > You must download all files **$env:ISO_NAME.zip.xxx** *(where xxx is number of archive)*
-          > If You have all files you can extract files. 
-                    
+          > If You have all files you can extract files.
+
           > [!TIP]
           > For example on windows with 7-Zip:
           > - Extract (GUI): ``Open **$env:ISO_NAME.zip.001** in 7-Zip and extract.``
@@ -314,7 +314,7 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: softprops/action-gh-release@v2.3.2
+        uses: softprops/action-gh-release@v2.5.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
