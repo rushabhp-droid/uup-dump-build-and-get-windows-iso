@@ -273,6 +273,7 @@ jobs:
           | Name | $finalImageName $($iso.version) |
           | Build | $($iso.build) |
           | Architecture | ${{ inputs.architecture }} |
+          | Language | ${{ inputs.language }} |
           "@
 
           if ($optsRow) {
@@ -281,7 +282,6 @@ jobs:
 
           Add-Content $env:GITHUB_STEP_SUMMARY @"
           | Checksum | $($iso.checksum) |
-          | Image Name | $finalImageName |
           | Iso | [$env:ISO_NAME]($env:artifact_url) |
           | UUP dump | [$($iso.title)]($($iso.uupDump.downloadUrl)) |
           "@
