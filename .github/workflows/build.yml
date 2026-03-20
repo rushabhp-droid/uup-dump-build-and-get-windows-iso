@@ -110,9 +110,6 @@ on:
         required: true
         default: false
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build:
     runs-on: ${{ fromJSON('{"x64":"windows-2025","arm64":"windows-11-arm"}')[inputs.architecture] }}
@@ -317,7 +314,7 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: softprops/action-gh-release@v2.5.0
+        uses: softprops/action-gh-release@v2.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
