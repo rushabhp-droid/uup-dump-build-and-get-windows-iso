@@ -234,6 +234,11 @@ L7: Got editions={1}." -f (Get-EditionName $edition), ($editions -join ','))
         $res = $false
       }
 
+      if (!$preview -and -not ($_.Value.title -match 'version')) {
+        Write-CleanLine "Skipping. Unexpected title format: missing 'version'."
+        $res = $false
+      }
+
       $res
     }
   | Select-Object -First 1
@@ -320,10 +325,14 @@ function Get-WindowsIso($name, $destinationDirectory) {
   $effectiveEdition = if ($isoHasEdition) { $iso.edition } else { $TARGETS.$name.edition }
 
   if (!$preview) {
-    if (-not ($iso.title -match 'version')) { throw "Unexpected title format: missing 'version'" }
-    $parts = $iso.title -split 'version\s*'
-    if ($parts.Count -lt 2) { throw "Unexpected title format, split resulted in less than 2 parts: $($parts -join '|')" }
-    $verbuild = $parts[1] -split '[\s\(]' | Select-Object -First 1
+    if ($iso.title -match 'version') {
+      $parts = $iso.title -split 'version\s*'
+      if ($parts.Count -lt 2) { throw "Unexpected title format, split resulted in less than 2 parts: $($parts -join '|')" }
+      $verbuild = $parts[1] -split '[\s\(]' | Select-Object -First 1
+    } else {
+      Write-CleanLine "WARN: Unexpected title format: missing 'version'. Using build number fallback."
+      $verbuild = $iso.build
+    }
   } else {
     $verbuild = $ringLower.ToUpper()
   }
