@@ -153,26 +153,21 @@ function Get-UupDumpIso($name, $target) {
   Write-CleanLine "Getting the $name metadata"
   $result = Invoke-UupDumpApi listid @{ search = $target.search }
 
-  $result.response.builds.PSObject.Properties
-  | ForEach-Object {
+  $result.response.builds.PSObject.Properties | ForEach-Object {
       $id = $_.Value.uuid
       $uupDumpUrl = 'https://uupdump.net/selectlang.php?' + (New-QueryString @{ id = $id })
       Write-CleanLine "Processing $name $id ($uupDumpUrl)"
       $_
-    }
-  | Where-Object {
+    } | Where-Object {
       if (!$preview) {
         $ok = ($target.search -like '*preview*') -or ($_.Value.title -notlike '*preview*')
         if (-not $ok) {
-          Write-CleanLine "Skipping.
-L1: Expected preview=false.
-L2: Got preview=true."
+          Write-CleanLine "Skipping.`nL1: Expected preview=false.`nL2: Got preview=true."
         }
         return $ok
       }
       $true
-    }
-  | ForEach-Object {
+    } | ForEach-Object {
       $id = $_.Value.uuid
       Write-CleanLine "Getting the $name $id langs metadata"
       $result = Invoke-UupDumpApi listlangs @{ id = $id }
@@ -181,24 +176,21 @@ L2: Got preview=true."
       }
       $_.Value | Add-Member -NotePropertyMembers @{ langs = $result.response.langFancyNames; info = $result.response.updateInfo }
 
-      $langs = if ($_.Value.langs -is [System.Management.Automation.PSCustomObject]) { @($_.Value.langs.PSObject.Properties).Name } else { @() }
+      $langs = if ($_.Value.langs -is [System.Management.Automation.PSCustomObject]) { @($_.Value.langs.PSObject.Properties | ForEach-Object { $_.Name }) } else { @() }
       
       $eds = if ($langs -contains $lang) {
         Write-CleanLine "Getting the $name $id editions metadata"
         $result = Invoke-UupDumpApi listeditions @{ id = $id; lang = $lang }
         $result.response.editionFancyNames
       } else {
-        Write-CleanLine "Skipping.
-L3: Expected langs=$lang.
-L4: Got langs=$($langs -join ',')."
+        Write-CleanLine "Skipping.`nL3: Expected langs=$lang.`nL4: Got langs=$($langs -join ',')."
         [PSCustomObject]@{}
       }
       $_.Value | Add-Member -NotePropertyMembers @{ editions = $eds }
       $_
-    }
-  | Where-Object {
-      $langs = if ($_.Value.langs -is [System.Management.Automation.PSCustomObject]) { @($_.Value.langs.PSObject.Properties).Name } else { @() }
-      $editions = if ($_.Value.editions -is [System.Management.Automation.PSCustomObject]) { @($_.Value.editions.PSObject.Properties).Name } else { @() }
+    } | Where-Object {
+      $langs = if ($_.Value.langs -is [System.Management.Automation.PSCustomObject]) { @($_.Value.langs.PSObject.Properties | ForEach-Object { $_.Name }) } else { @() }
+      $editions = if ($_.Value.editions -is [System.Management.Automation.PSCustomObject]) { @($_.Value.editions.PSObject.Properties | ForEach-Object { $_.Name }) } else { @() }
       $res = $true
 
       $expectedRing = if ($ringLower) { $ringLower.ToUpper() } else { 'RETAIL' }
@@ -206,8 +198,7 @@ L4: Got langs=$($langs -join ',')."
         $actual = ($_.Value.info.ring).ToUpper()
         if ($ringLower -in @('dev','beta')) {
           if ($actual -notin @($expectedRing, 'WIF', 'WIS')) {
-            Write-CleanLine "Skipping.
-L5: Expected ring match for $expectedRing, WIS or WIF. Got ring=$actual."
+            Write-CleanLine "Skipping.`nL5: Expected ring match for $expectedRing, WIS or WIF. Got ring=$actual."
             $res = $false
           }
         } else {
@@ -225,13 +216,11 @@ L5: Expected ring match for $expectedRing, WIS or WIF. Got ring=$actual."
 
       if ((Get-EditionName $edition) -eq "Multi") {
         if (($editions -notcontains "Professional") -and ($editions -notcontains "Core")) {
-          Write-CleanLine "Skipping.
-L6: Expected editions=Multi (Professional/Core). Got editions=$($editions -join ',')."
+          Write-CleanLine "Skipping.`nL6: Expected editions=Multi (Professional/Core). Got editions=$($editions -join ',')."
           $res = $false
         }
       } elseif ($editions -notcontains (Get-EditionName $edition)) {
-        Write-CleanLine ("Skipping. Expected editions={0}.
-L7: Got editions={1}." -f (Get-EditionName $edition), ($editions -join ','))
+        Write-CleanLine ("Skipping. Expected editions={0}.`nL7: Got editions={1}." -f (Get-EditionName $edition), ($editions -join ','))
         $res = $false
       }
 
@@ -241,9 +230,7 @@ L7: Got editions={1}." -f (Get-EditionName $edition), ($editions -join ','))
       }
 
       $res
-    }
-  | Select-Object -First 1
-  | ForEach-Object {
+    } | Select-Object -First 1 | ForEach-Object {
       $id = $_.Value.uuid
       [PSCustomObject]@{
         name               = $name
@@ -288,14 +275,11 @@ function Patch-Aria2-Flags {
   $sed = Get-Command sed -ErrorAction SilentlyContinue
   if ($sed) {
     Write-CleanLine "Patching aria2 flags in $CmdPath using sed."
-    # Remove conflicting flags first
     & $sed.Path -ri 's/\s--console-log-level=\w+\b//g; s/\s--summary-interval=\d+\b//g; s/\s--download-result=\w+\b//g; s/\s--enable-color=\w+\b//g; s/\s-(q|quiet(=\w+)?)\b//g' $CmdPath
-    # Inject quiet set right after "%aria2%"
     & $sed.Path -ri 's@("%aria2%"\s+)@\1--quiet=true --console-log-level=error --summary-interval=0 --download-result=hide --enable-color=false @g' $CmdPath
     return
   }
 
-  # Fallback: PowerShell regex (preserves UTF-16LE)
   Write-CleanLine "sed not found. Patching aria2 flags in $CmdPath using PowerShell fallback."
   $bytes   = [System.IO.File]::ReadAllBytes($CmdPath)
   $content = [System.Text.Encoding]::Unicode.GetString($bytes)
@@ -321,8 +305,10 @@ function Get-WindowsIso($name, $destinationDirectory) {
   $iso = Get-UupDumpIso $name $TARGETS.$name
   if (-not $iso) { throw "Can't find UUP for $name ($($TARGETS.$name.search)), lang=$lang." }
 
-  $isoHasEdition    = $iso.PSObject.Properties.Name -contains 'edition' -and $iso.edition
-  $hasVirtualMember = $iso.PSObject.Properties.Name -contains 'virtualEdition' -and $iso.virtualEdition
+  # Safeguard Iso Object Properties lookups via pipeline as well
+  $isoProps = @($iso.PSObject.Properties | ForEach-Object { $_.Name })
+  $isoHasEdition    = ($isoProps -contains 'edition') -and $iso.edition
+  $hasVirtualMember = ($isoProps -contains 'virtualEdition') -and $iso.virtualEdition
   $effectiveEdition = if ($isoHasEdition) { $iso.edition } else { $TARGETS.$name.edition }
 
   if (!$preview) {
@@ -380,10 +366,8 @@ function Get-WindowsIso($name, $destinationDirectory) {
   Write-CleanLine "Creating the $title iso file inside the $buildDirectory directory"
   Push-Location $buildDirectory
 
-  # Patch aria2 flags in the batch before running it
   Patch-Aria2-Flags -CmdPath (Join-Path $buildDirectory 'uup_download_windows.cmd')
 
-  # Raw log path
   $rawLog = Join-Path $env:RUNNER_TEMP "uup_dism_aria2_raw.log"
 
   choco install aria2 /y *> $null
@@ -397,7 +381,6 @@ function Get-WindowsIso($name, $destinationDirectory) {
         foreach ($crChunk in ($raw -split "`r")) {
           foreach ($line in ($crChunk -split "`n")) {
             if ($line -eq $null) { continue }
-            # DISM progress buckets; aria2 is not parsed here
             if (-not (Process-ProgressLine $line)) {
               if ($line -match '^\s*(Mounting image|Saving image|Applying image|Exporting image|Unmounting image|Deployment Image Servicing and Management tool|^=== )') {
                 Reset-ProgressSession
