@@ -159,6 +159,10 @@ function Get-UupDumpIso($name, $target) {
       Write-CleanLine "Processing $name $id ($uupDumpUrl)"
       $_
     } | Where-Object {
+      if ($_.Value.title -match '\.NET Framework') {
+        Write-CleanLine "Skipping, ignore .NET Framework update."
+        return $false
+        }
       if (!$preview) {
         $ok = ($target.search -like '*preview*') -or ($_.Value.title -notlike '*preview*')
         if (-not $ok) {
